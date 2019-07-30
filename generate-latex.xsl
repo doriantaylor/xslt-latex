@@ -8,6 +8,10 @@
 
 <xsl:output method="text" media-type="text/x-tex" encoding="utf-8"/>
 
+<xsl:key name="main" match="html:main[not(@hidden)]" use="''"/>
+<xsl:key name="article" match="html:article" use="''"/>
+<xsl:key name="section" match="html:section" use="''"/>
+
 <!--
 <xsl:template match="text()">
 <xsl:value-of select="normalize-space(translate(., '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', ''))"/>
@@ -32,6 +36,8 @@
   <z:char id="&#x2013;" replace="--"/>
   <z:char id="&#x2014;" replace="---"/>
   <z:char id="&#x2026;" replace="\ldots{}"/>
+  <z:char id="&#x2190;" replace="$\leftarrow$"/>
+  <z:char id="&#x2192;" replace="$\rightarrow$"/>
 </z:data>
 
 <xsl:variable name="Z-DATA" select="document('')/xsl:stylesheet/z:data"/>
@@ -137,9 +143,15 @@
 
 <xsl:template match="/">
 <xsl:variable name="is-contract" select="contains(concat(' ', normalize-space(/html:html/html:body/@typeof), ' '), ' bibo:LegalDocument ')"/>
+
+<xsl:variable name="has-main" select="key('main', '')[1]"/>
+<xsl:variable name="has-article" select="key('article', '')[1]"/>
+<xsl:variable name="has-section" select="key('section', '')[1]"/>
+
 <xsl:variable name="document-class">
   <xsl:choose>
     <xsl:when test="$is-contract"><xsl:value-of select="'article'"/></xsl:when>
+    <xsl:when test="not($has-section)"><xsl:value-of select="'article'"/></xsl:when>
     <xsl:otherwise><xsl:value-of select="'report'"/></xsl:otherwise>
   </xsl:choose>
 </xsl:variable>
@@ -147,7 +159,7 @@
 <xsl:text>\documentclass[letterpaper,twoside,10pt]{</xsl:text>
 <xsl:value-of select="$document-class"/><xsl:text>}
 \usepackage[utf8]{inputenc}
-\usepackage{palatino}
+%\usepackage{palatino}
 \usepackage[bookmarks=true,unicode=true,colorlinks=false,hidelinks=true]{hyperref}
 \usepackage[T1]{fontenc}
 \usepackage{textcomp}
@@ -155,19 +167,22 @@
 \usepackage{marginnote}
 \usepackage{sidenotes}
 \usepackage{graphicx}
+\usepackage{enumitem}
 \renewcommand{\abstractname}{Executive Summary}
-\graphicspath{{./clients/groups/mcabc/reports/}}
+%\graphicspath{{./clients/groups/mcabc/reports/}}
 </xsl:text>
 
 <xsl:apply-templates select="html:html/html:head"/>
 
 
 <xsl:text>
+\setlength{\parskip}{1em}
+\setlength{\parindent}{0em}
 \begin{document}
 \maketitle
 </xsl:text>
 
-<xsl:if test="not($is-contract)">
+<xsl:if test="$has-section and not($is-contract)">
 <xsl:text>
 \begin{abstract}
 </xsl:text>
@@ -180,7 +195,7 @@
 </xsl:text>
 </xsl:if>
 
-<xsl:if test="not($is-contract)">
+<xsl:if test="$has-section and not($is-contract)">
 <xsl:text>
 \tableofcontents
 
@@ -190,7 +205,8 @@
 <xsl:if test="$is-contract">
 </xsl:if>
 
-<xsl:apply-templates select="html:html/html:body/html:article[2]/html:section"/>
+<!--<xsl:apply-templates select="html:html/html:body/html:article[2]/html:section"/>-->
+<xsl:apply-templates select="($has-article|$has-main|html:html/html:body)[1]"/>
 
 <!--<xsl:apply-templates select="html:html/html:body/html:article[position() != 1]/html:section">
 </xsl:apply-templates>-->
@@ -330,6 +346,14 @@
 <xsl:text>\emph{</xsl:text><xsl:apply-templates/><xsl:text>}</xsl:text>
 </xsl:template>
 
+<xsl:template match="html:code|html:samp|html:kbd">
+<xsl:if test="@id">
+<xsl:text>\label{</xsl:text><xsl:value-of select="@id"/><xsl:text>}
+</xsl:text>
+</xsl:if>
+<xsl:text>\texttt{</xsl:text><xsl:apply-templates/><xsl:text>}</xsl:text>
+</xsl:template>
+
 <xsl:template match="html:var">
 <xsl:if test="@id">
 <xsl:text>\label{</xsl:text><xsl:value-of select="@id"/><xsl:text>}
@@ -377,7 +401,7 @@
 </xsl:text>
 </xsl:if>
 <xsl:text>
-\begin{description}
+\begin{description}[style=nextline]
 </xsl:text>
 <xsl:apply-templates select="html:dt|html:dd"/>
 <xsl:text>\end{description}
@@ -474,6 +498,11 @@
 
 <xsl:template match="html:br">
 <xsl:text>
+</xsl:text>
+</xsl:template>
+
+<xsl:template match="html:hr">
+<xsl:text>\hrulefill
 </xsl:text>
 </xsl:template>
 
