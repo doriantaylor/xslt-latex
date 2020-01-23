@@ -142,7 +142,9 @@
 </xsl:template>
 
 <xsl:template match="/">
-<xsl:variable name="is-contract" select="contains(concat(' ', normalize-space(/html:html/html:body/@typeof), ' '), ' bibo:LegalDocument ')"/>
+<!-- this thing is mocking me today -->
+<!--<xsl:variable name="is-contract" select="contains(concat(' ', normalize-space(/html:html/html:body/@typeof), ' '), ' bibo:LegalDocument ')"/>-->
+<xsl:variable name="is-contract" select="true()"/>
 
 <xsl:variable name="has-main" select="key('main', '')[1]"/>
 <xsl:variable name="has-article" select="key('article', '')[1]"/>
@@ -159,7 +161,7 @@
 <xsl:text>\documentclass[letterpaper,twoside,10pt]{</xsl:text>
 <xsl:value-of select="$document-class"/><xsl:text>}
 \usepackage[utf8]{inputenc}
-%\usepackage{palatino}
+\usepackage{palatino}
 \usepackage[bookmarks=true,unicode=true,colorlinks=false,hidelinks=true]{hyperref}
 \usepackage[T1]{fontenc}
 \usepackage{textcomp}
@@ -169,7 +171,6 @@
 \usepackage{graphicx}
 \usepackage{enumitem}
 \renewcommand{\abstractname}{Executive Summary}
-%\graphicspath{{./clients/groups/mcabc/reports/}}
 </xsl:text>
 
 <xsl:apply-templates select="html:html/html:head"/>
@@ -215,7 +216,8 @@
 </xsl:template>
 
 <xsl:template match="html:section">
-<xsl:variable name="is-contract" select="contains(concat(' ', normalize-space(/html:html/html:body/@typeof), ' '), ' bibo:LegalDocument ')"/>
+<!--<xsl:variable name="is-contract" select="contains(concat(' ', normalize-space(/html:html/html:body/@typeof), ' '), ' bibo:LegalDocument ')"/>-->
+<xsl:variable name="is-contract" select="true()"/>
 <xsl:variable name="sec-adj" select="number(boolean($is-contract))"/>
 
 <xsl:text>
@@ -497,7 +499,7 @@
 </xsl:template>
 
 <xsl:template match="html:br">
-<xsl:text>
+<xsl:text>\\
 </xsl:text>
 </xsl:template>
 
@@ -515,10 +517,27 @@
 <xsl:text>}</xsl:text>
 </xsl:template>
 
+<xsl:template match="@href" mode="href-text">
+<xsl:value-of select="."/>
+</xsl:template>
+
 <xsl:template match="html:a[@href]">
+  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="resource-path" select="$base"/>
+  <xsl:param name="rewrite" select="''"/>
+  <xsl:param name="main"    select="false()"/>
+  <xsl:param name="heading" select="0"/>
+
+  <xsl:variable name="href">
+    <xsl:apply-templates select="@href" mode="href-text">
+      <xsl:with-param name="base"          select="$base"/>
+      <xsl:with-param name="resource-path" select="$resource-path"/>
+      <xsl:with-param name="rewrite"       select="$rewrite"/>
+    </xsl:apply-templates>
+  </xsl:variable>
 <xsl:choose>
-  <xsl:when test="starts-with(@href, '#')">
-    <xsl:variable name="identifier" select="substring-after(@href, '#')"/>
+  <xsl:when test="starts-with($href, '#')">
+    <xsl:variable name="identifier" select="substring-after($href, '#')"/>
     <xsl:variable name="_">
       <xsl:text>\footnote{\hyperref[</xsl:text>
       <xsl:value-of select="$identifier"/>
@@ -544,16 +563,16 @@
       </xsl:otherwise>
     </xsl:choose>
   </xsl:when>
-  <xsl:when test="contains(@href, '://')">
+  <xsl:when test="contains($href, '://')">
     <xsl:apply-templates/>
     <xsl:text>\footnote{\protect\url{</xsl:text>
     <xsl:call-template name="process-text">
-      <xsl:with-param name="text" select="@href"/>
+      <xsl:with-param name="text" select="$href"/>
     </xsl:call-template>
     <xsl:text>}}</xsl:text>
   </xsl:when>
   <xsl:otherwise>
-    <xsl:text>\href{</xsl:text><xsl:value-of select="@href"/>
+    <xsl:text>\href{</xsl:text><xsl:value-of select="$href"/>
     <xsl:text>}{</xsl:text><xsl:apply-templates/><xsl:text>}</xsl:text>
   </xsl:otherwise>
 </xsl:choose>
@@ -566,7 +585,8 @@
 \begin{marginfigure}
 \footnotesize
 </xsl:text>
-<xsl:apply-templates/>
+<xsl:apply-templates>
+</xsl:apply-templates>
 <xsl:text>
 \end{marginfigure}
 
@@ -577,7 +597,8 @@
 <xsl:text>
 \begin{quotation}
 </xsl:text>
-<xsl:apply-templates select="*"/>
+<xsl:apply-templates select="*">
+</xsl:apply-templates>
 <xsl:text>
 \end{quotation}
 
@@ -585,7 +606,8 @@
 </xsl:template>
 
 <xsl:template match="html:cite">
-<xsl:text>\hfill ---</xsl:text><xsl:apply-templates/>
+<xsl:text>\hfill ---</xsl:text><xsl:apply-templates>
+</xsl:apply-templates>
 </xsl:template>
 
 <xsl:template match="html:figure[@role='note']"/>
@@ -595,7 +617,8 @@
 \begin{figure}[ht]
 \centering
 </xsl:text>
-<xsl:apply-templates select="*"/>
+<xsl:apply-templates select="*">
+</xsl:apply-templates>
 <xsl:text>
 \end{figure}
 
@@ -604,7 +627,8 @@
 
 <xsl:template match="html:figcaption">
 <xsl:variable name="content">
-<xsl:apply-templates select="*"/>
+<xsl:apply-templates select="*">
+</xsl:apply-templates>
 </xsl:variable>
 <xsl:choose>
   <xsl:when test="contains($content, '&#xa;') and string-length(normalize-space(substring-after($content, '&#xa;'))) != 0">
@@ -618,13 +642,17 @@
 </xsl:text>
 </xsl:template>
 
-<xsl:template match="html:figure/html:img">
+<xsl:template match="html:figure/html:img|html:figure/html:object[@type='image/svg+xml']">
+  <xsl:variable name="src" select="(@data|@src)[1]"/>
 <xsl:text>\includegraphics[width=0.9\textwidth]{</xsl:text>
 <xsl:choose>
-  <xsl:when test="starts-with(@src, '/') and not(contains(@src, '.'))">
-    <xsl:value-of select="concat(substring-after(@src, '/'), '.pdf')"/>
+  <xsl:when test="starts-with($src, '/') and not(contains($src, '.'))">
+    <xsl:value-of select="concat(substring-after($src, '/'), '.pdf')"/>
   </xsl:when>
-  <xsl:otherwise><xsl:value-of select="@src"/></xsl:otherwise>
+  <xsl:when test="@type = 'image/svg+xml'">
+    <xsl:value-of select="concat(substring-after($src, '/'), '.svg')"/>
+  </xsl:when>
+<xsl:otherwise><xsl:value-of select="$src"/></xsl:otherwise>
 </xsl:choose>
 <xsl:text>}</xsl:text>
 </xsl:template>
