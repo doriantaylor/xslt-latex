@@ -78,6 +78,9 @@
 <xsl:text>}&#x0a;</xsl:text>
 </xsl:template>
 
+<xsl:template match="text()[ancestor::html:pre]">
+  <xsl:value-of select="."/>
+</xsl:template>
 
 <xsl:template match="text()" name="process-text">
   <xsl:param name="text" select="."/>
@@ -131,6 +134,9 @@
     <xsl:choose>
       <xsl:when test="$is-uri and string($char/@id) = '~'">
         <xsl:value-of select="$char/@id"/>
+      </xsl:when>
+      <xsl:when test="ancestor::html:var and string($char/@id) = '~'">
+        <xsl:text>\sim{}</xsl:text>
       </xsl:when>
       <xsl:otherwise>
         <xsl:value-of select="$char/@replace"/>
@@ -340,6 +346,7 @@
 \usepackage{xltabular}
 \usepackage{multirow}
 %\usepackage{dblfnote}
+\usepackage{listings}
 </xsl:text>
 <xsl:if test="not($is-book or $is-multi)">
 <xsl:text>
@@ -590,6 +597,34 @@
 </xsl:text>
 </xsl:template>
 
+<xsl:template match="html:pre">
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
+  <xsl:param name="resource-path" select="$base"/>
+  <xsl:param name="rewrite" select="''"/>
+  <xsl:param name="main"    select="false()"/>
+  <xsl:param name="heading" select="0"/>
+
+  <xsl:apply-templates select="@id" mode="label"/>
+
+<xsl:text>
+\begin{lstlisting}
+\footnotesize
+</xsl:text>
+  <xsl:apply-templates>
+    <xsl:with-param name="base" select="$base"/>
+    <xsl:with-param name="resource-path" select="$resource-path"/>
+    <xsl:with-param name="rewrite"       select="$rewrite"/>
+    <xsl:with-param name="main"          select="$main"/>
+    <xsl:with-param name="heading"       select="$heading"/>
+  </xsl:apply-templates>
+<xsl:text>
+\end{lstlisting}
+
+</xsl:text>
+</xsl:template>
+
 <xsl:template match="html:q">
   <xsl:param name="base">
     <xsl:apply-templates select="." mode="xc:assert-base"/>
@@ -772,7 +807,7 @@
   <xsl:apply-templates select="@id" mode="label"/>
 
   <xsl:text>&#x0a;\begin{itemize}</xsl:text>
-  <xsl:if test="ancestor::html:aside[@role='note']">
+  <xsl:if test="ancestor::html:aside[@role='note']|ancestor::html:dt">
     <xsl:text>[leftmargin=*]</xsl:text>
   </xsl:if>
   <xsl:text>&#x0a;</xsl:text>
@@ -801,7 +836,11 @@
     <xsl:message>ol base: <xsl:value-of select="$base"/></xsl:message>
   </xsl:if>
 
-  <xsl:text>&#x0a;\begin{enumerate}&#x0a;</xsl:text>
+  <xsl:text>&#x0a;\begin{enumerate}</xsl:text>
+  <xsl:if test="ancestor::html:aside[@role='note']|ancestor::html:dt">
+    <xsl:text>[leftmargin=*]</xsl:text>
+  </xsl:if>
+  <xsl:text>&#x0a;</xsl:text>
   <xsl:apply-templates select="html:li">
     <xsl:with-param name="base" select="$base"/>
     <xsl:with-param name="resource-path" select="$resource-path"/>
