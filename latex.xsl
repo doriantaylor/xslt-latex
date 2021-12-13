@@ -30,13 +30,8 @@
 <xsl:variable name="DCT" select="'http://purl.org/dc/terms/'"/>
 <xsl:variable name="FOAF" select="'http://xmlns.com/foaf/0.1/'"/>
 
-<xsl:variable name="DEBUG" select="false()"/>
-<xsl:variable name="xc:DEBUG" select="false()"/>
-
-<!--
-<xsl:template match="text()">
-<xsl:value-of select="normalize-space(translate(., '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', ''))"/>
-</xsl:template>-->
+<xsl:variable name="DEBUG" select="true()"/>
+<xsl:variable name="xc:DEBUG" select="true()"/>
 
 <z:data>
   <z:char id="#" replace="\#"/>
@@ -79,13 +74,14 @@
 </z:sections>
 
 <xsl:template match="@id" mode="label">
-<xsl:text>\label{</xsl:text><xsl:value-of select="."/><xsl:text>}
-</xsl:text>
+<xsl:text>\label{</xsl:text><xsl:value-of select="."/>
+<xsl:text>}&#x0a;</xsl:text>
 </xsl:template>
 
 
 <xsl:template match="text()" name="process-text">
   <xsl:param name="text" select="."/>
+  <xsl:param name="is-uri" select="false()"/>
   <xsl:param name="depth" select="0"/>
 <xsl:choose>
   <xsl:when test="string-length($text) = 0"/>
@@ -127,16 +123,25 @@
       <!--<xsl:message>BEFORE <xsl:value-of select="$depth"/>: <xsl:value-of select="$before"/></xsl:message>-->
       <xsl:call-template name="process-text">
         <xsl:with-param name="text" select="$before"/>
+        <xsl:with-param name="is-uri" select="$is-uri"/>
         <xsl:with-param name="depth" select="$depth + 1"/>
       </xsl:call-template>
     </xsl:if>
 
-    <xsl:value-of select="$char/@replace"/>
+    <xsl:choose>
+      <xsl:when test="$is-uri and string($char/@id) = '~'">
+        <xsl:value-of select="$char/@id"/>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:value-of select="$char/@replace"/>
+      </xsl:otherwise>
+    </xsl:choose>
 
     <xsl:if test="string-length($after) != 0">
       <!--<xsl:message>AFTER <xsl:value-of select="$depth"/>: <xsl:value-of select="$after"/></xsl:message>-->
       <xsl:call-template name="process-text">
         <xsl:with-param name="text" select="$after"/>
+        <xsl:with-param name="is-uri" select="$is-uri"/>
         <xsl:with-param name="depth" select="$depth + 1"/>
       </xsl:call-template>
     </xsl:if>
@@ -154,7 +159,9 @@
 </xsl:template>
 
 <xsl:template match="html:head">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -259,14 +266,16 @@
 </xsl:template>
 
 <xsl:template match="/html:html">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:get-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite">
     <xsl:apply-templates select="." mode="xc:get-rewrites">
       <xsl:with-param name="base" select="$base"/>
     </xsl:apply-templates>
   </xsl:param>
-  <xsl:param name="main"    select="false()"/>
+  <xsl:param name="main" select="false()"/>
 
   <xsl:variable name="subject">
     <xsl:apply-templates select="." mode="rdfa:get-subject">
@@ -318,9 +327,10 @@
 <xsl:text>\documentclass[letterpaper,twoside,10pt]{</xsl:text>
 <xsl:value-of select="$document-class"/><xsl:text>}
 \usepackage[utf8]{inputenc}
-\usepackage{palatino}
-\usepackage[bookmarks=true,unicode=true,colorlinks=false,hidelinks=true]{hyperref}
 \usepackage[T1]{fontenc}
+\usepackage{palatino}
+\usepackage{inconsolata}
+\usepackage[bookmarks=true,unicode=true,colorlinks=false,hidelinks=true]{hyperref}
 \usepackage{textcomp}
 \usepackage{gensymb}
 \usepackage{marginnote}
@@ -329,8 +339,13 @@
 \usepackage{enumitem}
 \usepackage{xltabular}
 \usepackage{multirow}
+%\usepackage{dblfnote}
+</xsl:text>
+<xsl:if test="not($is-book or $is-multi)">
+<xsl:text>
 \renewcommand{\abstractname}{Executive Summary}
 </xsl:text>
+</xsl:if>
 
 <xsl:apply-templates select="html:head">
   <xsl:with-param name="base" select="$base"/>
@@ -379,7 +394,6 @@
 </xsl:text>
 </xsl:if>
 
-<!--<xsl:apply-templates select="html:html/html:body/html:article[2]/html:section"/>-->
 <xsl:apply-templates select="($has-article|$has-main|html:body)[1]">
   <xsl:with-param name="base" select="$base"/>
   <xsl:with-param name="resource-path" select="$resource-path"/>
@@ -394,37 +408,38 @@
 \end{document}</xsl:text>
 </xsl:template>
 
+<!-- throw this in for client project lol -->
 <xsl:template match="html:input[@value]">
 <xsl:value-of select="@value"/>
 </xsl:template>
 
 <xsl:template match="html:script[@type='text/javascript']"/>
 
-<xsl:template match="html:section|html:article|html:main|html:body" mode="normal">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+<xsl:template match="html:*" mode="xc:heading">
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
   <xsl:param name="heading" select="0"/>
-
-  <xsl:text>&#xa;</xsl:text>
+  <xsl:param name="debug" select="$xc:DEBUG"/>
 
   <xsl:variable name="keyword">
     <xsl:choose>
       <xsl:when test="$heading &lt; 7">
         <xsl:value-of select="document('')/xsl:stylesheet/z:sections/z:section[number($heading)]"/>
       </xsl:when>
-      <xsl:otherwise><xsl:value-of select="'subparagraph'"/></xsl:otherwise>
+      <xsl:otherwise>subparagraph</xsl:otherwise>
     </xsl:choose>
   </xsl:variable>
 
-  <xsl:if test="$DEBUG">
-    <xsl:message>base: <xsl:value-of select="$base"/>, heading level: <xsl:value-of select="$heading"/>, keyword: <xsl:value-of select="$keyword"/></xsl:message>
+  <xsl:if test="$debug">
+    <xsl:message>base: <xsl:value-of select="$base"/>, heading level: <xsl:value-of select="$heading"/>, keyword: <xsl:value-of select="$keyword"/>, title: <xsl:value-of select="normalize-space(.)"/></xsl:message>
   </xsl:if>
 
-
   <xsl:value-of select="concat('\', $keyword, '{')"/>
-  <xsl:apply-templates select="(html:h1|html:h2|html:h3|html:h4|html:h5|html:h6)[1]">
+  <xsl:apply-templates>
     <xsl:with-param name="base" select="$base"/>
     <xsl:with-param name="resource-path" select="$resource-path"/>
     <xsl:with-param name="rewrite"       select="$rewrite"/>
@@ -432,6 +447,27 @@
     <xsl:with-param name="heading"       select="$heading"/>
   </xsl:apply-templates>
   <xsl:text>}&#xa;</xsl:text>
+</xsl:template>
+
+<xsl:template match="html:section|html:article|html:main|html:body" mode="normal">
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
+  <xsl:param name="resource-path" select="$base"/>
+  <xsl:param name="rewrite" select="''"/>
+  <xsl:param name="main"    select="false()"/>
+  <xsl:param name="heading" select="0"/>
+  <xsl:param name="h-elem" select="(html:h1|html:h2|html:h3|html:h4|html:h5|html:h6)[1]"/>
+
+  <xsl:text>&#xa;</xsl:text>
+
+  <xsl:apply-templates select="$h-elem" mode="xc:heading">
+    <xsl:with-param name="base" select="$base"/>
+    <xsl:with-param name="resource-path" select="$resource-path"/>
+    <xsl:with-param name="rewrite"       select="$rewrite"/>
+    <xsl:with-param name="main"          select="$main"/>
+    <xsl:with-param name="heading"       select="$heading"/>
+  </xsl:apply-templates>
 
   <xsl:apply-templates select="@id" mode="label"/>
 
@@ -445,7 +481,9 @@
 </xsl:template>
 
 <xsl:template match="html:section">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -454,7 +492,6 @@
   <xsl:if test="$DEBUG">
     <xsl:message>hmm base: <xsl:value-of select="$base"/>, heading level: <xsl:value-of select="$heading"/></xsl:message>
   </xsl:if>
-
 
   <xsl:apply-templates select="." mode="normal">
     <xsl:with-param name="base" select="$base"/>
@@ -465,19 +502,24 @@
   </xsl:apply-templates>
 </xsl:template>
 
-<xsl:template match="html:section[html:script[@src][contains(translate(@type, 'XML', 'xml'), 'xml')]][count(*) = 1][normalize-space(text()) = '']">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+<xsl:template match="html:section[html:script[@src][contains(translate(@type, 'XML', 'xml'), 'xml')]][count(*) = 1][normalize-space(.) = '']">
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
   <xsl:param name="heading" select="0"/>
 
+  <xsl:message>got here lol</xsl:message>
+
+  <!-- note we don't increment the heading here because i dunno why -->
   <xsl:apply-templates select="html:script">
     <xsl:with-param name="base" select="$base"/>
     <xsl:with-param name="resource-path" select="$resource-path"/>
     <xsl:with-param name="rewrite"       select="$rewrite"/>
     <xsl:with-param name="main"          select="$main"/>
-    <xsl:with-param name="heading"       select="$heading + 1"/>
+    <xsl:with-param name="heading"       select="$heading"/>
   </xsl:apply-templates>
 
 </xsl:template>
@@ -522,7 +564,9 @@
 </xsl:template>-->
 
 <xsl:template match="html:p">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -547,7 +591,9 @@
 </xsl:template>
 
 <xsl:template match="html:q">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -567,7 +613,9 @@
 </xsl:template>
 
 <xsl:template match="html:samp">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -588,7 +636,9 @@
 
 <!-- XXX make this go to refs or something -->
 <xsl:template match="html:dfn|html:abbr">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -619,7 +669,9 @@
 </xsl:template>-->
 
 <xsl:template match="html:strong">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -639,7 +691,9 @@
 </xsl:template>
 
 <xsl:template match="html:em">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -659,7 +713,9 @@
 </xsl:template>
 
 <xsl:template match="html:code|html:samp|html:kbd">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -679,7 +735,9 @@
 </xsl:template>
 
 <xsl:template match="html:var">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -699,7 +757,9 @@
 </xsl:template>
 
 <xsl:template match="html:ul">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -711,7 +771,11 @@
 
   <xsl:apply-templates select="@id" mode="label"/>
 
-  <xsl:text>&#x0a;\begin{itemize}&#x0a;</xsl:text>
+  <xsl:text>&#x0a;\begin{itemize}</xsl:text>
+  <xsl:if test="ancestor::html:aside[@role='note']">
+    <xsl:text>[leftmargin=*]</xsl:text>
+  </xsl:if>
+  <xsl:text>&#x0a;</xsl:text>
   <xsl:apply-templates select="html:li">
     <xsl:with-param name="base" select="$base"/>
     <xsl:with-param name="resource-path" select="$resource-path"/>
@@ -723,7 +787,9 @@
 </xsl:template>
 
 <xsl:template match="html:ol">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -747,7 +813,9 @@
 </xsl:template>
 
 <xsl:template match="html:li">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -770,7 +838,9 @@
 </xsl:template>
 
 <xsl:template match="html:dl">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -790,7 +860,9 @@
 </xsl:template>
 
 <xsl:template match="html:dt">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -804,13 +876,15 @@
     <xsl:with-param name="main"          select="$main"/>
     <xsl:with-param name="heading"       select="$heading"/>
   </xsl:apply-templates>
-  <xsl:text>] </xsl:text>
+  <xsl:text>]~ </xsl:text>
 
   <xsl:apply-templates select="@id" mode="label"/>
 </xsl:template>
 
 <xsl:template match="html:dd">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -831,7 +905,9 @@
 </xsl:template>
 
 <xsl:template match="html:table">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -863,13 +939,13 @@
     <xsl:if test="position() &lt; last()"><xsl:text>| </xsl:text></xsl:if>
     -->
     <xsl:text>X</xsl:text>
-    <xsl:if test="position() &lt; last()"><xsl:text> </xsl:text></xsl:if>
+    <xsl:if test="position() &lt; last()"><xsl:text>| </xsl:text></xsl:if>
   </xsl:for-each>
 </xsl:variable>
 
 
 <xsl:text>
-\begin{xltabular}[c]{0.8\linewidth}{</xsl:text>
+\begin{xltabular}[c]{\linewidth}{</xsl:text>
 <xsl:value-of select="$col-spec"/>
 <xsl:text>}
 </xsl:text>
@@ -904,7 +980,9 @@
 </xsl:template>
 
 <xsl:template match="html:thead">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -922,7 +1000,9 @@
 </xsl:template>
 
 <xsl:template match="html:tfoot">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -940,7 +1020,9 @@
 </xsl:template>
 
 <xsl:template match="html:tbody">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -998,9 +1080,35 @@
 
 -->
 
+<xsl:template match="html:tr/html:th|html:tr/html:td">
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
+  <xsl:param name="resource-path" select="$base"/>
+  <xsl:param name="rewrite" select="''"/>
+  <xsl:param name="main"    select="false()"/>
+  <xsl:param name="heading" select="0"/>
+  <xsl:param name="prev-offset" select="0"/>
+
+  <xsl:variable name="row-offset" select="count(../preceding-sibling::html:tr)"/>
+  <xsl:variable name="min-col-offset" select="count(preceding-sibling::*[not(@colspan &gt; 1)]) + sum(preceding-sibling::*[@colspan &gt; 1]/@colspan)"/>
+  <xsl:variable name="width" select="count(self::*[not(@colspan &gt; 1)]) + sum(self::*[@colspan &gt; 1]/@colspan)"/>
+
+  <xsl:variable name="rowspans-raw" select="../preceding-sibling::html:tr/html:*[@rowspan &gt; $row-offset - count(../preceding-sibling::html:tr)]"/>
+
+  <xsl:apply-templates select="(following-sibling::html:th|following-sibling::html:td)[1]">
+    <xsl:with-param name="base" select="$base"/>
+    <xsl:with-param name="resource-path" select="$resource-path"/>
+    <xsl:with-param name="rewrite"       select="$rewrite"/>
+    <xsl:with-param name="main"          select="$main"/>
+    <xsl:with-param name="heading"       select="$heading"/>
+  </xsl:apply-templates>
+</xsl:template>
 
 <xsl:template match="html:tr">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -1031,6 +1139,7 @@
               <xsl:with-param name="main"          select="$main"/>
               <xsl:with-param name="heading"       select="$heading"/>
             </xsl:apply-templates>
+            <xsl:text>} </xsl:text>
           </xsl:when>
           <xsl:otherwise>
             <xsl:apply-templates>
@@ -1054,6 +1163,7 @@
           <xsl:with-param name="main"          select="$main"/>
           <xsl:with-param name="heading"       select="$heading"/>
         </xsl:apply-templates>
+        <xsl:text>} </xsl:text>
       </xsl:when>
       <xsl:otherwise>
         <xsl:apply-templates>
@@ -1089,14 +1199,19 @@
 </xsl:template>-->
 
 <xsl:template match="html:*" mode="get-nearest-id">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
   <xsl:param name="heading" select="0"/>
   <xsl:param name="id"      select="''"/>
 
-  <xsl:message>hi</xsl:message>
+  <xsl:variable name="base">
+    <xsl:apply-templates select="." mode="xc:get-base"/>
+  </xsl:variable>
+
+  <xsl:if test="$DEBUG">
+    <xsl:message>fetching id <xsl:value-of select="$id"/> from <xsl:value-of select="$base"/></xsl:message>
+  </xsl:if>
 
   <xsl:variable name="_">
     <xsl:choose>
@@ -1108,7 +1223,6 @@
       </xsl:otherwise>
     </xsl:choose>
   </xsl:variable>
-
 
   <xsl:variable name="id-element" select="key('id', $_)[1]"/>
   <!--<xsl:variable name="nearest" select="$id-element/ancestor-or-self::html:*[self::html:table|self::html:figure|self::html:section|self::html:article|self::html:main|self::html:body][1]"/>-->
@@ -1128,12 +1242,62 @@
   </xsl:choose>
 </xsl:template>
 
-<xsl:template match="html:a[@href]">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+<xsl:template match="html:*" mode="get-ref-text">
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
   <xsl:param name="heading" select="0"/>
+  <xsl:param name="id"      select="''"/>
+
+  <xsl:variable name="base">
+    <xsl:apply-templates select="." mode="xc:get-base"/>
+  </xsl:variable>
+
+  <xsl:variable name="_">
+    <xsl:choose>
+      <xsl:when test="contains(normalize-space($id), '#')">
+        <xsl:value-of select="normalize-space(substring-after($id, '#'))"/>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:value-of select="normalize-space($id)"/>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:variable>
+
+  <xsl:variable name="node" select="key('id', $_)[1]"/>
+
+  <xsl:choose>
+    <xsl:when test="$node/ancestor-or-self::html:table">
+      <xsl:text>Table </xsl:text>
+    </xsl:when>
+    <xsl:when test="$node/ancestor-or-self::html:figure">
+      <xsl:text>Fig. </xsl:text>
+    </xsl:when>
+    <xsl:otherwise><xsl:text>\S .</xsl:text></xsl:otherwise>
+  </xsl:choose>
+</xsl:template>
+  
+<xsl:template match="html:a[@href]">
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
+  <xsl:param name="resource-path" select="$base"/>
+  <xsl:param name="rewrite" select="''"/>
+  <xsl:param name="main"    select="false()"/>
+  <xsl:param name="heading" select="0"/>
+
+  <xsl:variable name="origin">
+    <xsl:call-template name="xc:get-origin">
+      <xsl:with-param name="resource-path" select="$resource-path"/>
+    </xsl:call-template>
+  </xsl:variable>
+
+  <xsl:variable name="href-raw">
+    <xsl:call-template name="uri:resolve-uri">
+      <xsl:with-param name="uri" select="@href"/>
+      <xsl:with-param name="base" select="$base"/>
+    </xsl:call-template>
+  </xsl:variable>
 
   <xsl:variable name="href">
     <xsl:apply-templates select="@href" mode="xc:href">
@@ -1144,12 +1308,12 @@
   </xsl:variable>
 
   <xsl:if test="$DEBUG">
-    <xsl:message>parent: <xsl:value-of select="name(..)"/>, base: <xsl:value-of select="$base"/>, href: <xsl:value-of select="$href"/></xsl:message>
+    <xsl:message>parent: <xsl:value-of select="name(..)"/>, base: <xsl:value-of select="$base"/>, href: <xsl:value-of select="$href-raw"/> -&gt; <xsl:value-of select="$href"/></xsl:message>
   </xsl:if>
 
   <xsl:variable name="fragment">
-    <xsl:variable name="_" select="substring-after($href, $base)"/>
-    <xsl:if test="starts-with($href, $base) and starts-with($_, '#')">
+    <xsl:variable name="_" select="substring-after($href, $origin)"/>
+    <xsl:if test="starts-with($href, $origin) and starts-with($_, '#')">
       <xsl:value-of select="$_"/>
     </xsl:if>
   </xsl:variable>
@@ -1160,30 +1324,40 @@
         we need to be able to get the id 
         
     -->
+
+    <xsl:variable name="doc">
+      <xsl:choose>
+          <xsl:when test="contains($href-raw, '#')">
+            <xsl:value-of select="substring-before($href-raw, '#')"/>
+          </xsl:when>
+          <xsl:otherwise><xsl:value-of select="$href-raw"/></xsl:otherwise>
+      </xsl:choose>
+    </xsl:variable>
+    <xsl:variable name="doc-root" select="document($doc)/*"/>
+
     <xsl:variable name="identifier">
       <!--<xsl:message><xsl:value-of select="$href"/>: <xsl:value-of select="count(document(substring-before($href, '#')))"/></xsl:message>-->
-      <xsl:apply-templates select="document(substring-before($href, '#'))/*" mode="get-nearest-id">
-        <xsl:with-param name="base" select="$base"/>
+      <xsl:apply-templates select="$doc-root" mode="get-nearest-id">
         <xsl:with-param name="resource-path" select="$resource-path"/>
         <xsl:with-param name="rewrite"       select="$rewrite"/>
         <xsl:with-param name="main"          select="$main"/>
         <xsl:with-param name="heading"       select="$heading"/>
-        <xsl:with-param name="id"            select="$fragment"/>
+        <xsl:with-param name="id"            select="substring-after($fragment, '#')"/>
       </xsl:apply-templates>
     </xsl:variable>
     <xsl:variable name="_">
       <xsl:text>\footnote{\hyperref[</xsl:text>
       <xsl:value-of select="$identifier"/>
       <xsl:text>]{</xsl:text>
-      <xsl:choose>
-        <xsl:when test="ancestor::html:table">
-          <xsl:text>Table </xsl:text>
-        </xsl:when>
-        <xsl:when test="ancestor::html:figure">
-          <xsl:text>Fig. </xsl:text>
-        </xsl:when>
-        <xsl:otherwise><xsl:text>\S .</xsl:text></xsl:otherwise>
-      </xsl:choose>
+
+      <xsl:apply-templates select="$doc-root" mode="get-ref-text">
+        <xsl:with-param name="resource-path" select="$resource-path"/>
+        <xsl:with-param name="rewrite"       select="$rewrite"/>
+        <xsl:with-param name="main"          select="$main"/>
+        <xsl:with-param name="heading"       select="$heading"/>
+        <xsl:with-param name="id"            select="substring-after($fragment, '#')"/>
+      </xsl:apply-templates>
+
       <xsl:text> \ref*{</xsl:text>
       <xsl:value-of select="$identifier"/>
       <xsl:text>}, p.\pageref{</xsl:text>
@@ -1230,6 +1404,7 @@
     <!--<xsl:text>\footnote{\url{</xsl:text>-->
     <xsl:call-template name="process-text">
       <xsl:with-param name="text" select="$href"/>
+      <xsl:with-param name="is-uri" select="true()"/>
     </xsl:call-template>
     <xsl:text>}}</xsl:text>
   </xsl:when>
@@ -1241,7 +1416,9 @@
 </xsl:template>
 
 <xsl:template match="html:a[@href][ancestor::html:h1|ancestor::html:h2|ancestor::html:h3|ancestor::html:h4|ancestor::html:h5|ancestor::html:h6]" priority="2">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -1259,7 +1436,9 @@
 </xsl:template>
 
 <xsl:template match="html:blockquote[contains(@class, 'note')]|html:aside[contains(@role, 'note')]">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -1284,7 +1463,9 @@
 </xsl:template>
 
 <xsl:template match="html:blockquote">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -1307,7 +1488,9 @@
 </xsl:template>
 
 <xsl:template match="html:cite">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -1324,14 +1507,16 @@
 <xsl:template match="html:figure[@role='note']"/>
 
 <!-- special one for table -->
-<xsl:template match="html:figure[html:table][count(*)=1]">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+<xsl:template match="html:figure[html:table][count(*) = 1]|html:figure[html:table[following-sibling::html:figcaption]][count(*) = 2]">
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
   <xsl:param name="heading" select="0"/>
 
-  <xsl:apply-templates>
+  <xsl:apply-templates select="html:table">
     <xsl:with-param name="base" select="$base"/>
     <xsl:with-param name="resource-path" select="$resource-path"/>
     <xsl:with-param name="rewrite"       select="$rewrite"/>
@@ -1341,7 +1526,9 @@
 </xsl:template>
 
 <xsl:template match="html:figure">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -1365,7 +1552,9 @@
 </xsl:template>
 
 <xsl:template match="html:figcaption">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -1387,13 +1576,15 @@
   </xsl:when>
   <xsl:otherwise><xsl:text>\caption{</xsl:text></xsl:otherwise>
 </xsl:choose>
-<xsl:value-of select="concat('\footnotesize{}', $content)"/>
+<xsl:value-of select="concat('\footnotesize{}', normalize-space($content))"/>
 <xsl:text>}
 </xsl:text>
 </xsl:template>
 
 <xsl:template match="html:figure/html:img|html:figure/html:object[@type='image/svg+xml']">
-  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
@@ -1407,15 +1598,152 @@
   </xsl:when>
   <xsl:when test="@type = 'image/svg+xml'">
     <!--<xsl:value-of select="concat(substring-after($src, '/'), '.svg')"/>-->
-    <xsl:value-of select="concat($src, '.svg')"/>-->
+    <xsl:value-of select="concat($src, '.svg')"/>
   </xsl:when>
 <xsl:otherwise><xsl:value-of select="$src"/></xsl:otherwise>
 </xsl:choose>
 <xsl:text>}</xsl:text>
 </xsl:template>
 
-<xsl:template match="html:*">
+<!-- XXX not sure why this gets overridden but we need to copy it here -->
+
+<xsl:template match="html:script[@src][contains(translate(@type, 'XML', 'xml'), 'xml')]">
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
+  <xsl:param name="resource-path" select="$base"/>
+  <xsl:param name="rewrite"       select="''"/>
+  <xsl:param name="main"          select="false()"/>
+  <xsl:param name="heading"       select="0"/>
+  <xsl:param name="debug"         select="$xc:DEBUG"/>
+
+  <xsl:variable name="src">
+    <xsl:call-template name="uri:resolve-uri">
+      <xsl:with-param name="uri" select="@src"/>
+      <xsl:with-param name="base" select="$base"/>
+    </xsl:call-template>
+  </xsl:variable>
+
+  <xsl:if test="$debug">
+    <xsl:message>script tag rewrites: <xsl:value-of select="$rewrite"/></xsl:message>
+  </xsl:if>
+
+  <xsl:apply-templates select="." mode="xc:transclude-element">
+    <xsl:with-param name="base"          select="$base"/>
+    <xsl:with-param name="resource-path" select="$resource-path"/>
+    <xsl:with-param name="rewrite"       select="$rewrite"/>
+    <xsl:with-param name="main"          select="$main"/>
+    <xsl:with-param name="heading"       select="$heading"/>
+    <xsl:with-param name="src"           select="$src"/>
+  </xsl:apply-templates>
+</xsl:template>
+
+<xsl:template match="html:section|html:article|html:main|html:body" mode="xc:transclude-shim">
+  <xsl:param name="base"/>
+  <xsl:param name="resource-path"/>
+  <xsl:param name="rewrite"/>
+  <xsl:param name="main"/>
+  <xsl:param name="heading"/>
+  <xsl:param name="uri"/>
+  <xsl:param name="caller"/>
+  <xsl:param name="merged" select="false()"/>
+
+  <xsl:variable name="h-elem" select="(html:h1|html:h2|html:h3|html:h4|html:h5|html:h6|ancestor::html:html[1]/html:head[1]/html:title[1])[1]"/>
+  <xsl:apply-templates select="$h-elem" mode="xc:heading">
+    <xsl:with-param name="base" select="$base"/>
+    <xsl:with-param name="resource-path" select="$resource-path"/>
+    <xsl:with-param name="rewrite"       select="$rewrite"/>
+    <xsl:with-param name="main"          select="$main"/>
+    <xsl:with-param name="heading"       select="$heading"/>
+  </xsl:apply-templates>
+
+  <xsl:apply-templates select="@id" mode="label"/>
+
+  <xsl:apply-templates>
+    <xsl:with-param name="base" select="$base"/>
+    <xsl:with-param name="resource-path" select="$resource-path"/>
+    <xsl:with-param name="rewrite"       select="$rewrite"/>
+    <xsl:with-param name="main"          select="$main"/>
+    <xsl:with-param name="heading"       select="$heading + 1"/>
+  </xsl:apply-templates>
+</xsl:template>
+
+<xsl:template match="html:*" mode="xc:transclude-shim">
+  <xsl:param name="base"/>
+  <xsl:param name="resource-path"/>
+  <xsl:param name="rewrite"/>
+  <xsl:param name="main"/>
+  <xsl:param name="heading"/>
+  <xsl:param name="uri"/>
+  <xsl:param name="caller"/>
+  <xsl:param name="merged" select="false()"/>
+
+  <xsl:variable name="parent" select="$caller/parent::*"/>
+
+  <xsl:apply-templates select="." mode="xc:maybe-wrap">
+    <xsl:with-param name="base"          select="$base"/>
+    <xsl:with-param name="resource-path" select="$resource-path"/>
+    <xsl:with-param name="rewrite"       select="$rewrite"/>
+    <xsl:with-param name="main"          select="$main"/>
+    <xsl:with-param name="heading"       select="$heading"/>
+    <xsl:with-param name="uri"           select="$uri"/>
+    <xsl:with-param name="caller"        select="$caller"/>
+    <xsl:with-param name="merged"        select="$merged"/>
+  </xsl:apply-templates>
+</xsl:template>
+
+<xsl:template match="html:*" mode="xc:wrap">
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
+  <xsl:param name="resource-path" select="$base"/>
+  <xsl:param name="rewrite"       select="''"/>
+  <xsl:param name="main"          select="false()"/>
+  <xsl:param name="heading"       select="0"/>
+
+  <xsl:apply-templates select="*|text()">
+    <xsl:with-param name="base"          select="$base"/>
+    <xsl:with-param name="resource-path" select="$resource-path"/>
+    <xsl:with-param name="rewrite"       select="$rewrite"/>
+    <xsl:with-param name="main"          select="$main"/>
+    <xsl:with-param name="heading"       select="$heading"/>
+  </xsl:apply-templates>
+</xsl:template>
+
+<xsl:template match="html:article|html:section" mode="xc:merge">
   <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="resource-path" select="$base"/>
+  <xsl:param name="rewrite" select="''"/>
+  <xsl:param name="main"    select="false()"/>
+  <xsl:param name="heading" select="0"/>
+  <xsl:param name="debug"   select="$xc:DEBUG"/>
+  <xsl:param name="target">
+    <xsl:message>$target is a mandatory parameter</xsl:message>
+  </xsl:param>
+  <xsl:param name="caller">
+    <xsl:message>$caller is a mandatory parameter</xsl:message>
+  </xsl:param>
+  <xsl:param name="uri">
+    <xsl:message>$uri is a mandatory parameter</xsl:message>
+  </xsl:param>
+  <xsl:param name="plain" select="false()"/>
+
+  <xsl:apply-templates select="$target" mode="xc:transclude-shim">
+    <xsl:with-param name="base"          select="$base"/>
+    <xsl:with-param name="resource-path" select="$resource-path"/>
+    <xsl:with-param name="rewrite"       select="$rewrite"/>
+    <xsl:with-param name="main"          select="$main"/>
+    <xsl:with-param name="heading"       select="$heading"/>
+    <xsl:with-param name="uri"           select="$uri"/>
+    <xsl:with-param name="caller"        select="$caller"/>
+  </xsl:apply-templates>
+
+</xsl:template>
+
+<xsl:template match="html:*" priority="-1">
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
   <xsl:param name="resource-path" select="$base"/>
   <xsl:param name="rewrite"       select="''"/>
   <xsl:param name="main"          select="false()"/>
