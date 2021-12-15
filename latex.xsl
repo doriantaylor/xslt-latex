@@ -30,8 +30,8 @@
 <xsl:variable name="DCT" select="'http://purl.org/dc/terms/'"/>
 <xsl:variable name="FOAF" select="'http://xmlns.com/foaf/0.1/'"/>
 
-<xsl:variable name="DEBUG" select="true()"/>
-<xsl:variable name="xc:DEBUG" select="true()"/>
+<xsl:variable name="DEBUG" select="false()"/>
+<xsl:variable name="xc:DEBUG" select="false()"/>
 
 <z:data>
   <z:char id="#" replace="\#"/>
@@ -807,7 +807,7 @@
   <xsl:apply-templates select="@id" mode="label"/>
 
   <xsl:text>&#x0a;\begin{itemize}</xsl:text>
-  <xsl:if test="ancestor::html:aside[@role='note']|ancestor::html:dt">
+  <xsl:if test="ancestor::html:aside[@role='note']|ancestor::html:dt|ancestor::html:dd">
     <xsl:text>[leftmargin=*]</xsl:text>
   </xsl:if>
   <xsl:text>&#x0a;</xsl:text>
@@ -1315,7 +1315,76 @@
     <xsl:otherwise><xsl:text>\S .</xsl:text></xsl:otherwise>
   </xsl:choose>
 </xsl:template>
+
+
+<xsl:template match="html:a[@href][normalize-space(.) = '']" mode="link-text" priority="5">
+  <xsl:param name="base" select="normalize-space((ancestor-or-self::html:html[html:head/html:base[@href]][1]/html:head/html:base[@href])[1]/@href)"/>
+  <xsl:param name="resource-path" select="$base"/>
+  <xsl:param name="rewrite" select="''"/>
+  <xsl:param name="main"    select="false()"/>
+  <xsl:param name="heading" select="0"/>
+
+  <xsl:variable name="href">
+    <xsl:call-template name="uri:resolve-uri">
+      <xsl:with-param name="uri" select="@href"/>
+      <xsl:with-param name="base" select="$base"/>
+    </xsl:call-template>
+  </xsl:variable>
+
+  <xsl:variable name="types">
+    <xsl:text> </xsl:text>
+    <xsl:apply-templates select="." mode="rdfa:object-resources">
+      <xsl:with-param name="subject" select="$href"/>
+      <xsl:with-param name="predicate" select="$rdfa:RDF-TYPE"/>
+      <xsl:with-param name="base" select="$base"/>
+    </xsl:apply-templates>
+    <xsl:text> </xsl:text>
+  </xsl:variable>
+
+  <!-- who knows, there may be elements -->
+  <xsl:apply-templates select="*">
+    <xsl:with-param name="base" select="$base"/>
+    <xsl:with-param name="resource-path" select="$resource-path"/>
+    <xsl:with-param name="rewrite"       select="$rewrite"/>
+    <xsl:with-param name="main"          select="$main"/>
+    <xsl:with-param name="heading"       select="$heading + 1"/>
+  </xsl:apply-templates>
+
+  <xsl:message>waaaaaah wtf</xsl:message>
+
+  <xsl:choose>
+    <xsl:when test="contains($types, ' http://www.w3.org/ns/oa#Annotation ')">
+      <xsl:text>[Untitled Note]</xsl:text>
+    </xsl:when>
+    <xsl:otherwise>
+      <xsl:text>[Untitled]</xsl:text>
+    </xsl:otherwise>
+  </xsl:choose>
+
+</xsl:template>
+
   
+<xsl:template match="html:a[@href]" mode="link-text">
+  <xsl:param name="base">
+    <xsl:apply-templates select="." mode="xc:assert-base"/>
+  </xsl:param>
+  <xsl:param name="resource-path" select="$base"/>
+  <xsl:param name="rewrite" select="''"/>
+  <xsl:param name="main"    select="false()"/>
+  <xsl:param name="heading" select="0"/>
+
+  <!--<xsl:message>&gt;<xsl:value-of select="normalize-space(.)"/>&lt;</xsl:message>-->
+
+  <xsl:apply-templates>
+    <xsl:with-param name="base" select="$base"/>
+    <xsl:with-param name="resource-path" select="$resource-path"/>
+    <xsl:with-param name="rewrite"       select="$rewrite"/>
+    <xsl:with-param name="main"          select="$main"/>
+    <xsl:with-param name="heading"       select="$heading"/>
+  </xsl:apply-templates>
+</xsl:template>
+
+
 <xsl:template match="html:a[@href]">
   <xsl:param name="base">
     <xsl:apply-templates select="." mode="xc:assert-base"/>
@@ -1411,7 +1480,7 @@
     <xsl:choose>
       <xsl:when test="ancestor::html:dt">
         <!--<xsl:value-of select="concat('\protect{', $_, '}')"/>-->
-        <xsl:apply-templates>
+        <xsl:apply-templates select="." mode="link-text">
           <xsl:with-param name="base" select="$base"/>
           <xsl:with-param name="resource-path" select="$resource-path"/>
           <xsl:with-param name="rewrite"       select="$rewrite"/>
@@ -1420,7 +1489,7 @@
         </xsl:apply-templates>
       </xsl:when>
       <xsl:otherwise>
-        <xsl:apply-templates>
+        <xsl:apply-templates select="." mode="link-text">
           <xsl:with-param name="base" select="$base"/>
           <xsl:with-param name="resource-path" select="$resource-path"/>
           <xsl:with-param name="rewrite"       select="$rewrite"/>
@@ -1432,7 +1501,7 @@
     </xsl:choose>
   </xsl:when>
   <xsl:when test="contains($href, '://')">
-    <xsl:apply-templates>
+    <xsl:apply-templates select="." mode="link-text">
       <xsl:with-param name="base" select="$base"/>
       <xsl:with-param name="resource-path" select="$resource-path"/>
       <xsl:with-param name="rewrite"       select="$rewrite"/>
