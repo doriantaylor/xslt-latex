@@ -7,14 +7,15 @@
                 xmlns:uri="http://xsltsl.org/uri"
                 xmlns:dt="http://xsltsl.org/date-time"
                 xmlns:xc="https://makethingsmakesense.com/asset/transclude#"
+                xmlns:latex="https://makethingsmakesense.com/asset/latex#"
                 xmlns:z="urn:x-dummy:data"
-                exclude-result-prefixes="rdfa str uri dt xc z">
+                exclude-result-prefixes="rdfa str uri dt xc z latex">
 
-<xsl:import href="/asset/xsltsl/string"/>  
-<xsl:import href="/asset/xsltsl/uri"/>  
-<xsl:import href="/asset/xsltsl/date-time"/>  
-<xsl:import href="/asset/rdfa"/>  
-<xsl:import href="/asset/transclude"/>  
+<xsl:import href="/asset/xsltsl/string"/>
+<xsl:import href="/asset/xsltsl/uri"/>
+<xsl:import href="/asset/xsltsl/date-time"/>
+<xsl:import href="/asset/rdfa"/>
+<xsl:import href="/asset/transclude"/>
 
 <xsl:output method="text" media-type="text/x-tex" encoding="utf-8"/>
 
@@ -32,6 +33,11 @@
 
 <xsl:variable name="DEBUG" select="false()"/>
 <xsl:variable name="xc:DEBUG" select="false()"/>
+
+<xsl:variable name="latex:DEBUG" select="false()"/>
+<xsl:variable name="latex:FOOTNOTES" select="true()"/>
+<xsl:variable name="latex:MARGIN-NOTES" select="true()"/>
+<xsl:variable name="latex:HR-NEWPAGE" select="false()"/>
 
 <z:data>
   <z:char id="#" replace="\#"/>
@@ -76,6 +82,10 @@
 <xsl:template match="@id" mode="label">
 <xsl:text>\label{</xsl:text><xsl:value-of select="."/>
 <xsl:text>}&#x0a;</xsl:text>
+</xsl:template>
+
+<xsl:template match="text()[normalize-space(.) = '']">
+<xsl:text> </xsl:text>
 </xsl:template>
 
 <xsl:template match="text()[ancestor::html:pre]">
@@ -151,7 +161,6 @@
         <xsl:with-param name="depth" select="$depth + 1"/>
       </xsl:call-template>
     </xsl:if>
-    
   </xsl:when>
   <xsl:otherwise><xsl:value-of select="$text"/></xsl:otherwise>
 </xsl:choose>
@@ -314,7 +323,7 @@
     </xsl:choose>
   </xsl:variable>
 
-  <xsl:if test="$DEBUG">
+  <xsl:if test="$latex:DEBUG">
     <xsl:message>type(s): <xsl:value-of select="$type"/>; heading level: <xsl:value-of select="$heading"/>; base: <xsl:value-of select="$base"/></xsl:message>
   </xsl:if>
 
@@ -347,6 +356,22 @@
 \usepackage{multirow}
 %\usepackage{dblfnote}
 \usepackage{listings}
+
+\lstdefinestyle{basic}{
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2
+}
+
+\lstset{style=basic}
 </xsl:text>
 <xsl:if test="not($is-book or $is-multi)">
 <xsl:text>
@@ -430,7 +455,7 @@
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
   <xsl:param name="heading" select="0"/>
-  <xsl:param name="debug" select="$xc:DEBUG"/>
+  <xsl:param name="debug" select="$latex:DEBUG"/>
 
   <xsl:variable name="keyword">
     <xsl:choose>
@@ -496,7 +521,7 @@
   <xsl:param name="main"    select="false()"/>
   <xsl:param name="heading" select="0"/>
 
-  <xsl:if test="$DEBUG">
+  <xsl:if test="$latex:DEBUG">
     <xsl:message>hmm base: <xsl:value-of select="$base"/>, heading level: <xsl:value-of select="$heading"/></xsl:message>
   </xsl:if>
 
@@ -579,12 +604,12 @@
   <xsl:param name="main"    select="false()"/>
   <xsl:param name="heading" select="0"/>
 
-  <xsl:if test="$DEBUG">
+  <xsl:if test="$latex:DEBUG">
     <xsl:message>p base: <xsl:value-of select="$base"/></xsl:message>
   </xsl:if>
 
   <xsl:apply-templates select="@id" mode="label"/>
-
+  <xsl:text>&#x0a;</xsl:text>
   <xsl:apply-templates>
     <xsl:with-param name="base" select="$base"/>
     <xsl:with-param name="resource-path" select="$resource-path"/>
@@ -610,7 +635,6 @@
 
 <xsl:text>
 \begin{lstlisting}
-\footnotesize
 </xsl:text>
   <xsl:apply-templates>
     <xsl:with-param name="base" select="$base"/>
@@ -800,7 +824,7 @@
   <xsl:param name="main"    select="false()"/>
   <xsl:param name="heading" select="0"/>
 
-  <xsl:if test="$DEBUG">
+  <xsl:if test="$latex:DEBUG">
     <xsl:message>ul base: <xsl:value-of select="$base"/></xsl:message>
   </xsl:if>
 
@@ -832,7 +856,7 @@
 
   <xsl:apply-templates select="@id" mode="label"/>
 
-  <xsl:if test="$DEBUG">
+  <xsl:if test="$latex:DEBUG">
     <xsl:message>ol base: <xsl:value-of select="$base"/></xsl:message>
   </xsl:if>
 
@@ -860,7 +884,7 @@
   <xsl:param name="main"    select="false()"/>
   <xsl:param name="heading" select="0"/>
 
-  <xsl:if test="$DEBUG">
+  <xsl:if test="$latex:DEBUG">
     <xsl:message>li base: <xsl:value-of select="$base"/></xsl:message>
   </xsl:if>
 
@@ -887,6 +911,22 @@
 
   <xsl:apply-templates select="@id" mode="label"/>
 
+  <xsl:variable name="types">
+    <xsl:text> </xsl:text>
+    <xsl:apply-templates select="." mode="rdfa:object-resources">
+      <xsl:with-param name="subject" select="$base"/>
+      <xsl:with-param name="predicate" select="$rdfa:RDF-TYPE"/>
+      <xsl:with-param name="base" select="$base"/>
+    </xsl:apply-templates>
+    <xsl:text> </xsl:text>
+  </xsl:variable>
+
+  <xsl:variable name="glossary" select="contains($types, ' http://www.w3.org/2004/02/skos/core#ConceptScheme ') or contains($types,  ' http://www.w3.org/2004/02/skos/core#Collection ') or contains($types, ' http://www.w3.org/2004/02/skos/core#OrderedCollection ')"/>
+
+  <xsl:if test="$glossary">
+  <xsl:text>&#x0a;\begin{footnotesize}</xsl:text>
+  </xsl:if>
+
   <xsl:text>&#x0a;\begin{description}[style=nextline]&#x0a;</xsl:text>
   <xsl:apply-templates select="html:dt|html:dd">
     <xsl:with-param name="base" select="$base"/>
@@ -894,8 +934,13 @@
     <xsl:with-param name="rewrite"       select="$rewrite"/>
     <xsl:with-param name="main"          select="$main"/>
     <xsl:with-param name="heading"       select="$heading"/>
+    <xsl:with-param name="glossary"      select="$glossary"/>
   </xsl:apply-templates>
-  <xsl:text>\end{description}&#x0a;</xsl:text>
+  <xsl:text>&#x0a;\end{description}&#x0a;</xsl:text>
+
+  <xsl:if test="$glossary">
+  <xsl:text>&#x0a;\end{footnotesize}&#x0a;</xsl:text>
+  </xsl:if>
 </xsl:template>
 
 <xsl:template match="html:dt">
@@ -906,6 +951,7 @@
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
   <xsl:param name="heading" select="0"/>
+  <xsl:param name="glossary" select="false()"/>
 
   <xsl:text>\item [</xsl:text>
   <xsl:apply-templates>
@@ -928,19 +974,34 @@
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
   <xsl:param name="heading" select="0"/>
+  <xsl:param name="glossary" select="false()"/>
 
-  <xsl:apply-templates>
-    <xsl:with-param name="base" select="$base"/>
-    <xsl:with-param name="resource-path" select="$resource-path"/>
-    <xsl:with-param name="rewrite"       select="$rewrite"/>
-    <xsl:with-param name="main"          select="$main"/>
-    <xsl:with-param name="heading"       select="$heading"/>
-  </xsl:apply-templates>
-  <xsl:if test="following-sibling::*[1][self::html:dd]">
-    <xsl:text> \\</xsl:text>
-  </xsl:if>
+  <xsl:variable name="_">
+    <xsl:apply-templates>
+      <xsl:with-param name="base" select="$base"/>
+      <xsl:with-param name="resource-path" select="$resource-path"/>
+      <xsl:with-param name="rewrite"       select="$rewrite"/>
+      <xsl:with-param name="main"          select="$main"/>
+      <xsl:with-param name="heading"       select="$heading"/>
+    </xsl:apply-templates>
+  </xsl:variable>
 
-  <xsl:text>&#x0a;</xsl:text>
+  <xsl:choose>
+    <xsl:when test="$glossary">
+      <xsl:value-of select="normalize-space($_)"/>
+      <xsl:if test="following-sibling::*[1][self::html:dd]">
+        <xsl:text>, </xsl:text>
+      </xsl:if>
+    </xsl:when>
+    <xsl:otherwise>
+      <xsl:value-of select="$_"/>
+      <xsl:if test="following-sibling::*[1][self::html:dd]">
+        <xsl:text> \\</xsl:text>
+      </xsl:if>
+
+      <xsl:text>&#x0a;</xsl:text>
+    </xsl:otherwise>
+  </xsl:choose>
 </xsl:template>
 
 <xsl:template match="html:table">
@@ -1224,7 +1285,14 @@
 </xsl:template>
 
 <xsl:template match="html:hr">
-<xsl:text>\hrulefill&#x0a;&#x0a;</xsl:text>
+<xsl:choose>
+  <xsl:when test="$latex:HR-NEWPAGE">
+    <xsl:text>&#x0a;\newpage&#x0a;&#x0a;</xsl:text>
+  </xsl:when>
+  <xsl:otherwise>
+    <xsl:text>\hrulefill&#x0a;&#x0a;</xsl:text>
+  </xsl:otherwise>
+</xsl:choose>
 </xsl:template>
 
 <!--
@@ -1248,7 +1316,7 @@
     <xsl:apply-templates select="." mode="xc:get-base"/>
   </xsl:variable>
 
-  <xsl:if test="$DEBUG">
+  <xsl:if test="$latex:DEBUG">
     <xsl:message>fetching id <xsl:value-of select="$id"/> from <xsl:value-of select="$base"/></xsl:message>
   </xsl:if>
 
@@ -1267,7 +1335,9 @@
   <!--<xsl:variable name="nearest" select="$id-element/ancestor-or-self::html:*[self::html:table|self::html:figure|self::html:section|self::html:article|self::html:main|self::html:body][1]"/>-->
   <xsl:variable name="nearest" select="($id-element/ancestor-or-self::html:body[1]|$id-element/ancestor-or-self::html:main[1]|$id-element/ancestor-or-self::html:article[1]|$id-element/ancestor-or-self::html:section[1]|$id-element/ancestor-or-self::html:figure[1]|$id-element/ancestor-or-self::html:table[1])[last()]"/>
 
-  <xsl:message><xsl:value-of select="name($id-element)"/> -&gt; <xsl:value-of select="name($nearest)"/></xsl:message>
+  <xsl:if test="$latex:DEBUG">
+    <xsl:message><xsl:value-of select="name($id-element)"/> -&gt; <xsl:value-of select="name($nearest)"/></xsl:message>
+  </xsl:if>
 
   <xsl:choose>
     <xsl:when test="$nearest[@id]">
@@ -1363,7 +1433,6 @@
 
 </xsl:template>
 
-  
 <xsl:template match="html:a[@href]" mode="link-text">
   <xsl:param name="base">
     <xsl:apply-templates select="." mode="xc:assert-base"/>
@@ -1415,7 +1484,7 @@
     </xsl:apply-templates>
   </xsl:variable>
 
-  <xsl:if test="$DEBUG">
+  <xsl:if test="$latex:DEBUG">
     <xsl:message>parent: <xsl:value-of select="name(..)"/>, base: <xsl:value-of select="$base"/>, href: <xsl:value-of select="$href-raw"/> -&gt; <xsl:value-of select="$href"/></xsl:message>
   </xsl:if>
 
@@ -1425,12 +1494,29 @@
       <xsl:value-of select="$_"/>
     </xsl:if>
   </xsl:variable>
+
+  <xsl:variable name="text">
+    <xsl:apply-templates select="." mode="link-text">
+      <xsl:with-param name="base"          select="$base"/>
+      <xsl:with-param name="resource-path" select="$resource-path"/>
+      <xsl:with-param name="rewrite"       select="$rewrite"/>
+      <xsl:with-param name="main"          select="$main"/>
+      <xsl:with-param name="heading"       select="$heading"/>
+    </xsl:apply-templates>
+  </xsl:variable>
+
+  <xsl:variable name="href-safe">
+    <xsl:call-template name="process-text">
+      <xsl:with-param name="text" select="$href"/>
+      <xsl:with-param name="is-uri" select="true()"/>
+      </xsl:call-template>
+  </xsl:variable>
+
 <xsl:choose>
   <xsl:when test="starts-with($fragment, '#')">
     <!--
         \label doesn't work more granularly than sections/figures/tables.
-        we need to be able to get the id 
-        
+        we need to be able to get the id
     -->
 
     <xsl:variable name="doc">
@@ -1441,6 +1527,7 @@
           <xsl:otherwise><xsl:value-of select="$href-raw"/></xsl:otherwise>
       </xsl:choose>
     </xsl:variable>
+
     <xsl:variable name="doc-root" select="document($doc)/*"/>
 
     <xsl:variable name="identifier">
@@ -1477,48 +1564,53 @@
       <xsl:apply-templates/>
       <xsl:text>}</xsl:text>-->
     </xsl:variable>
+
     <xsl:choose>
       <xsl:when test="ancestor::html:dt">
         <!--<xsl:value-of select="concat('\protect{', $_, '}')"/>-->
-        <xsl:apply-templates select="." mode="link-text">
-          <xsl:with-param name="base" select="$base"/>
-          <xsl:with-param name="resource-path" select="$resource-path"/>
-          <xsl:with-param name="rewrite"       select="$rewrite"/>
-          <xsl:with-param name="main"          select="$main"/>
-          <xsl:with-param name="heading"       select="$heading"/>
-        </xsl:apply-templates>
+        <xsl:value-of select="normalize-space($text)"/>
+      </xsl:when>
+      <xsl:when test="not($latex:FOOTNOTES)">
+        <xsl:text>\hyperref[</xsl:text>
+        <xsl:value-of select="$identifier"/>
+        <xsl:text>]{</xsl:text>
+        <xsl:value-of select="normalize-space($text)"/>
+        <xsl:text>}</xsl:text>
       </xsl:when>
       <xsl:otherwise>
-        <xsl:apply-templates select="." mode="link-text">
-          <xsl:with-param name="base" select="$base"/>
-          <xsl:with-param name="resource-path" select="$resource-path"/>
-          <xsl:with-param name="rewrite"       select="$rewrite"/>
-          <xsl:with-param name="main"          select="$main"/>
-          <xsl:with-param name="heading"       select="$heading"/>
-        </xsl:apply-templates>
+        <xsl:value-of select="normalize-space($text)"/>
         <xsl:value-of select="$_"/>
       </xsl:otherwise>
     </xsl:choose>
   </xsl:when>
   <xsl:when test="contains($href, '://')">
-    <xsl:apply-templates select="." mode="link-text">
-      <xsl:with-param name="base" select="$base"/>
-      <xsl:with-param name="resource-path" select="$resource-path"/>
-      <xsl:with-param name="rewrite"       select="$rewrite"/>
-      <xsl:with-param name="main"          select="$main"/>
-      <xsl:with-param name="heading"       select="$heading"/>
-    </xsl:apply-templates>
-    <xsl:text>\footnote{\protect\url{</xsl:text>
-    <!--<xsl:text>\footnote{\url{</xsl:text>-->
-    <xsl:call-template name="process-text">
-      <xsl:with-param name="text" select="$href"/>
-      <xsl:with-param name="is-uri" select="true()"/>
-    </xsl:call-template>
-    <xsl:text>}}</xsl:text>
+    <xsl:choose>
+      <xsl:when test="$latex:FOOTNOTES">
+        <xsl:value-of select="$text"/>
+
+        <xsl:text>\footnote\protect\url{</xsl:text>
+        <!--<xsl:text>\footnote{\url{</xsl:text>-->
+        <xsl:call-template name="process-text">
+          <xsl:with-param name="text" select="$href"/>
+          <xsl:with-param name="is-uri" select="true()"/>
+        </xsl:call-template>
+        <xsl:text>}}</xsl:text>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:text>\href{</xsl:text>
+        <xsl:value-of select="$href-safe"/>
+        <xsl:text>}{</xsl:text>
+        <xsl:value-of select="normalize-space($text)"/>
+        <xsl:text>}</xsl:text>
+      </xsl:otherwise>
+    </xsl:choose>
   </xsl:when>
   <xsl:otherwise>
-    <xsl:text>\href{</xsl:text><xsl:value-of select="$href"/>
-    <xsl:text>}{</xsl:text><xsl:apply-templates/><xsl:text>}</xsl:text>
+    <xsl:text>\href{</xsl:text>
+    <xsl:value-of select="$href-safe"/>
+    <xsl:text>}{</xsl:text>
+    <xsl:value-of select="normalize-space($text)"/>
+    <xsl:text>}</xsl:text>
   </xsl:otherwise>
 </xsl:choose>
 </xsl:template>
@@ -1553,6 +1645,7 @@
   <xsl:param name="heading" select="0"/>
 <!--<xsl:text>\marginnote{</xsl:text><xsl:apply-templates/><xsl:text>}
 </xsl:text>-->
+<xsl:if test="$latex:MARGIN-NOTES">
 <xsl:text>
 \begin{marginfigure}
 \footnotesize
@@ -1568,6 +1661,7 @@
 \end{marginfigure}
 
 </xsl:text>
+</xsl:if>
 </xsl:template>
 
 <xsl:template match="html:blockquote">
@@ -1723,7 +1817,7 @@
   <xsl:param name="rewrite"       select="''"/>
   <xsl:param name="main"          select="false()"/>
   <xsl:param name="heading"       select="0"/>
-  <xsl:param name="debug"         select="$xc:DEBUG"/>
+  <xsl:param name="debug"         select="$latex:DEBUG"/>
 
   <xsl:variable name="src">
     <xsl:call-template name="uri:resolve-uri">
@@ -1756,7 +1850,12 @@
   <xsl:param name="caller"/>
   <xsl:param name="merged" select="false()"/>
 
-  <xsl:variable name="h-elem" select="(html:h1|html:h2|html:h3|html:h4|html:h5|html:h6|ancestor::html:html[1]/html:head[1]/html:title[1])[1]"/>
+  <xsl:variable name="h-elem" select="(html:h1|html:h2|html:h3|html:h4|html:h5|html:h6|ancestor::html:html[1]/html:head[1]/html:title[1])[last()]"/>
+
+  <xsl:if test="$latex:DEBUG">
+    <xsl:message>h-elem: <xsl:value-of select="local-name($h-elem)"/></xsl:message>
+  </xsl:if>
+
   <xsl:apply-templates select="$h-elem" mode="xc:heading">
     <xsl:with-param name="base" select="$base"/>
     <xsl:with-param name="resource-path" select="$resource-path"/>
@@ -1767,7 +1866,7 @@
 
   <xsl:apply-templates select="@id" mode="label"/>
 
-  <xsl:apply-templates>
+  <xsl:apply-templates select="text()|*[generate-id() != generate-id($h-elem)]">
     <xsl:with-param name="base" select="$base"/>
     <xsl:with-param name="resource-path" select="$resource-path"/>
     <xsl:with-param name="rewrite"       select="$rewrite"/>
@@ -1824,7 +1923,7 @@
   <xsl:param name="rewrite" select="''"/>
   <xsl:param name="main"    select="false()"/>
   <xsl:param name="heading" select="0"/>
-  <xsl:param name="debug"   select="$xc:DEBUG"/>
+  <xsl:param name="debug"   select="$latex:DEBUG"/>
   <xsl:param name="target">
     <xsl:message>$target is a mandatory parameter</xsl:message>
   </xsl:param>
@@ -1856,7 +1955,7 @@
   <xsl:param name="rewrite"       select="''"/>
   <xsl:param name="main"          select="false()"/>
   <xsl:param name="heading"       select="0"/>
-  <xsl:param name="debug"         select="$xc:DEBUG"/>
+  <xsl:param name="debug"         select="$latex:DEBUG"/>
 
   <xsl:if test="$debug">
     <xsl:message>MY catch-all running on node: <xsl:value-of select="name()"/>; base: <xsl:value-of select="$base"/></xsl:message>
